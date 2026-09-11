@@ -1,0 +1,99 @@
+resources:
+  jobs:
+    olist_catalog_data_ingestion:
+      name: olist_catalog_data_ingestion
+
+      tasks:
+        - task_key: bronze_kaggle_ingestion_iterator
+          for_each_task:
+            inputs: >-
+              ["olist_customers_dataset.csv","olist_geolocation_dataset.csv",
+              "olist_order_items_dataset.csv","olist_order_payments_dataset.csv",
+              "olist_order_reviews_dataset.csv","olist_orders_dataset.csv",
+              "olist_products_dataset.csv","olist_sellers_dataset.csv",
+              "product_category_name_translation.csv"]
+            task:
+              task_key: bronze_kaggle_ingestion_iteration
+              notebook_task:
+                notebook_path: ../notebooks/001_bronze/kaggle_ingestion.ipynb
+                base_parameters:
+                  dataset: "{{input}}"
+                source: WORKSPACE
+              min_retry_interval_millis: 900000
+              environment_key: default
+
+        - task_key: silver_order_items
+          notebook_task:
+            notebook_path: ../notebooks/002_silver/order_items.ipynb
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: bronze_kaggle_ingestion_iterator
+
+        - task_key: silver_orders
+          notebook_task:
+            notebook_path: ../notebooks/002_silver/orders.ipynb
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: bronze_kaggle_ingestion_iterator
+
+        - task_key: silver_products
+          notebook_task:
+            notebook_path: ../notebooks/002_silver/products.ipynb
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: bronze_kaggle_ingestion_iterator
+
+        - task_key: silver_reviews
+          notebook_task:
+            notebook_path: ../notebooks/002_silver/reviews.ipynb
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: bronze_kaggle_ingestion_iterator
+              
+        - task_key: gold_delivery_performance
+          notebook_task:
+            notebook_path: ../notebooks/003_gold/delivery_performance.ipynb
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: silver_orders
+            - task_key: silver_order_items
+          
+        - task_key: gold_sales_by_category
+          notebook_task:
+            notebook_path: ../notebooks/003_gold/sales_by_category.ipynb
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: silver_orders
+            - task_key: silver_order_items
+            - task_key: silver_products
+          
+        - task_key: gold_seller_scorecard
+          notebook_task:
+            notebook_path: ../notebooks/003_gold/seller_scorecard.ipynb
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: silver_orders
+            - task_key: silver_order_items
+            - task_key: silver_reviews
+
+      queue:
+        enabled: true
+      performance_target: PERFORMANCE_OPTIMIZED
+
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "6"
+            dependencies:
+              - ../dist/*.whl
