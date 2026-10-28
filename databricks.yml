@@ -8,7 +8,8 @@ bundle:
 include:
   - resources/*.yml
   - resources/**/*.yml
-  - "*.local.yml"
+  - databricks.local.yml
+  - variables.yml
 
 artifacts:
   olist_lakehouse:
@@ -16,14 +17,6 @@ artifacts:
     build: |
       rm -rf dist/
       uv build --package olist-lakehouse --out-dir dist/
-
-variables:
-  # workspace_user default value is set in databricks.local.yml for safety reasons
-  workspace_user:
-    description: The workspace user email (set in databricks.local.yml)
-  catalog:
-    description: The default project catalog.
-    default: olist
 
 targets:
   dev:
@@ -35,7 +28,6 @@ targets:
     permissions: 
       - user_name: ${var.workspace_user}
         level: CAN_MANAGE
-
 
   prod:
     mode: production

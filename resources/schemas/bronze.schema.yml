@@ -1,0 +1,8 @@
+resources:
+  schemas:
+    bronze:
+      catalog_name: "olist"
+      name: "bronze"
+      comment: "Bronze schema for objects"
+      lifecycle:
+        prevent_destroy: true

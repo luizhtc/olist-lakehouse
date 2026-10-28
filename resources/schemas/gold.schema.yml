@@ -1,0 +1,8 @@
+resources:
+  schemas:
+    gold:
+      catalog_name: "olist"
+      name: "gold"
+      comment: "Gold schema for objects"
+      lifecycle:
+        prevent_destroy: true
