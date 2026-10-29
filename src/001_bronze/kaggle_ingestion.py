@@ -1,5 +1,5 @@
 # Databricks notebook source
-# DBTITLE 1,Required secrets tutorial
+# DBTITLE 1,TUTORIAL: Required secrets
 # This notebook requires a Kaggle API Token, defined in 'kaggle' databricks secrets scope.
 
 # Run the following Databricks CLI commands in a safe environment to create the scope and secret:
@@ -21,11 +21,11 @@
 # DBTITLE 1,Imports
 import os
 
+import kagglehub
+from kagglehub import KaggleDatasetAdapter
 from pyspark.sql.functions import current_timestamp
 
-from olist_lakehouse.data_sources import load_into_pandas_dataframe
-from olist_lakehouse.io import write_managed_table
-from olist_lakehouse.transformations import all_columns_string
+from olist_lakehouse.dataframe_transformations import all_columns_string
 
 # COMMAND ----------
 
@@ -39,13 +39,12 @@ from olist_lakehouse.transformations import all_columns_string
 
 # COMMAND ----------
 
-# DBTITLE 1,Defining KAGGLE_API_TOKEN env variable
 try:
     os.environ["KAGGLE_API_TOKEN"] = dbutils.secrets.get("kaggle", "KAGGLE_API_TOKEN")
 except Exception as e:
     raise ValueError(
         "Could not load Kaggle API Token, be sure to follow the steps at the "
-        "beginning of this notebook to set the secrets!"
+        "beginning of this notebook to setup the secrets!"
     ) from e
 
 # COMMAND ----------
@@ -55,15 +54,15 @@ except Exception as e:
 
 # COMMAND ----------
 
-# DBTITLE 1,Define parameters
-dbutils.widgets.text("catalog", "")
-dbutils.widgets.text("dataset", "")
+dbutils.widgets.text("catalog_name", "olist")
+dbutils.widgets.text("source_path", "olist_customers_dataset.csv")
+dbutils.widgets.text("bronze_schema_name", "dev_luizhtcaldo_bronze")
 
 # COMMAND ----------
 
-# DBTITLE 1,Get parameters
-catalog = dbutils.widgets.get("catalog")
-dataset = dbutils.widgets.get("dataset")
+catalog_name = dbutils.widgets.get("catalog_name")
+source_path = dbutils.widgets.get("source_path")
+bronze_schema_name = dbutils.widgets.get("bronze_schema_name")
 
 # COMMAND ----------
 
@@ -72,11 +71,11 @@ dataset = dbutils.widgets.get("dataset")
 
 # COMMAND ----------
 
-# DBTITLE 1,CSV read and table write
-table_output_name = f"{catalog}.bronze.{dataset.replace(".csv", "")}"
-pandas_df = load_into_pandas_dataframe(
+#DBTITLE 1,Downloading the source file from Kaggle and transforming it to a PySpark DF
+pandas_df = kagglehub.dataset_load(
+    adapter=KaggleDatasetAdapter.PANDAS,
     handle="olistbr/brazilian-ecommerce",
-    path=dataset,
+    path=source_path,
 )
 
 spark_df = (
@@ -85,11 +84,10 @@ spark_df = (
     .withColumn("last_updated_timestamp", current_timestamp())
 )
 
+# COMMAND ----------
+
+#DBTITLE 1,Write to bronze table
 # The olist dataset is small and static, so in this case we will re-download
 # each full dataset and overwrite the table in every write
-write_managed_table(
-    spark_df,
-    mode="overwrite",
-    table_full_path=table_output_name,
-    options={"overwriteSchema": "true"}
-)
+target_tbl = f"{catalog_name}.{bronze_schema_name}.{source_path.replace(".csv", "")}"
+spark_df.write.mode("overwrite").options(overwriteSchema="true").saveAsTable(target_tbl)
