@@ -1,5 +1,18 @@
 from pyspark.sql import Column, DataFrame
 from pyspark.sql.functions import coalesce, col, lit, try_to_timestamp
+from pyspark.sql.types import StringType
+
+
+def all_columns_string(df: DataFrame) -> DataFrame:
+    """Casts all DataFrame columns to :class:`StringType` Data Type.
+
+    Args:
+        df (:class:`pyspark.sql.DataFrame`): DataFrame to be transformed.
+
+    Returns:
+        Transformed PySpark DataFrame with all columns casted as StringType.
+    """
+    return df.select([col(c).cast(StringType()) for c in df.columns])
 
 
 def parse_timestamp(column: Column) -> Column:
@@ -14,18 +27,3 @@ def parse_timestamp(column: Column) -> Column:
     """
     FORMATS = ["yyyy-MM-dd HH:mm:ss"]
     return coalesce(*[try_to_timestamp(column, lit(fmt)) for fmt in FORMATS])
-
-
-def calculate_dimensional_metrics(df: DataFrame) -> DataFrame:
-    return (
-        df
-        .withColumn("product_volume_cm3",
-            col("product_length_cm")
-            * col("product_height_cm")
-            * col("product_width_cm"))
-        .withColumn("density_g_cm3", col("product_weight_g") / col("product_volume_cm3"))
-    )
-
-
-def all_columns_string(df: DataFrame) -> DataFrame:
-    return df.select([col(c).cast("string") for c in df.columns])

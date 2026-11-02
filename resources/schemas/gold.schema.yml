@@ -1,0 +1,7 @@
+resources:
+  schemas:
+    gold:
+      catalog_name: ${var.catalog_name}
+      name: ${var.gold_schema_name}
+      lifecycle:
+        prevent_destroy: true

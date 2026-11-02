@@ -1,0 +1,7 @@
+resources:
+  schemas:
+    silver:
+      catalog_name: ${var.catalog_name}
+      name: ${var.silver_schema_name}
+      lifecycle:
+        prevent_destroy: true

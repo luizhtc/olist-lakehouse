@@ -18,9 +18,9 @@ the medallion architecture, Delta Lake, Unity Catalog, reusable packaged librari
 
 * `src/`: Python source code for this project.
   * `src/olist_lakehouse/`: Shared Python code used by jobs and notebooks.
-* `notebooks/`: Notebooks used by jobs and other analysis.
 * `resources/`:  Resource configurations.
 * `tests/`: Unit tests for the shared Python code.
+* `databricks.yml`: Databricks DABs configuration file.
 
 ## Getting started
 
@@ -67,16 +67,18 @@ variables:
 
 #### Variables used by the project
 
-- `workspace_user`: the user email used to build the target workspace path and assign manage permissions in the Databricks bundle.
-- `catalog`: the Unity Catalog catalog used by the job parameter, defaulting to `olist` in `databricks.yml`.
+- `catalog_name`: the Unity Catalog catalog name used for deployment of tables and UC objects, this catalog must be already created, if it does not exist, the bundle will fail to deploy.
+- `bronze_schema_name`: the Bronze layer medallion schema name.
+- `silver_schema_name`: the Silver layer medallion schema name.
+- `gold_schema_name`: the Gold layer medallion schema name.
 
-You can override the catalog value when deploying or running the job if you want to target a different catalog name.
+**Note: when deploying in target environments with mode: development, the schemas will be prefixed with 'dev_<-username->', you can change this in `databricks.yml`.
 
 ---
 
 ### Databricks required secret KAGGLE_API_TOKEN
 
-This notebook requires a Kaggle API token, defined in the `kaggle` Databricks secret scope.
+The kaggle ingestion notebook requires a Kaggle API token, you need to use Databricks secrets to deploy a `KAGGLE_API_TOKEN` secret key within a scope named `kaggle`.
 
 Run the following Databricks CLI commands in a safe environment to create the scope and secret:
 
@@ -85,7 +87,7 @@ databricks secrets create-scope kaggle
 databricks secrets put-secret kaggle KAGGLE_API_TOKEN --string-value "<your_token>"
 ```
 
-You can also create the scope and secret with Python:
+You can also create the scope and secret with Python, running this cell in a Databricks Workspace notebook or python file:
 
 ```python
 from databricks.sdk import WorkspaceClient

@@ -8,7 +8,7 @@ bundle:
 include:
   - resources/*.yml
   - resources/**/*.yml
-  - "*.local.yml"
+  - databricks.local.yml
 
 artifacts:
   olist_lakehouse:
@@ -18,30 +18,40 @@ artifacts:
       uv build --package olist-lakehouse --out-dir dist/
 
 variables:
-  # workspace_user default value is set in databricks.local.yml for safety reasons
-  workspace_user:
-    description: The workspace user email (set in databricks.local.yml)
-  catalog:
-    description: The default project catalog.
+  catalog_name:
+    description: Name of the catalog to be used for deployed assets and resources.
     default: olist
+  bronze_schema_name:
+    description: The name of the bronze schema for Unity Catalog to store tables.
+    default: bze
+  silver_schema_name:
+    description: The name of the silver schema for Unity Catalog to store tables.
+    default: slv
+  gold_schema_name:
+    description: The name of the gold schema for Unity Catalog to store tables.
+    default: gld
 
+# This is an example configuration, you can tailor the targets according
+# to your needs, use this documentation for reference:
+# https://docs.databricks.com/aws/en/dev-tools/bundles/reference#targets
 targets:
   dev:
     mode: development
     default: true
     workspace:
       # workspace.host default value is set in databricks.local.yml for safety reasons
-      root_path: /Workspace/Users/${var.workspace_user}/Bundles/${bundle.name}/${bundle.target}
+      # see databricks.local.yml.example
+      root_path: /Workspace/Users/${var.workspace_user}/.bundle/${bundle.name}/${bundle.target}
     permissions: 
       - user_name: ${var.workspace_user}
         level: CAN_MANAGE
-
 
   prod:
     mode: production
     workspace:
       # workspace.host default value is set in databricks.local.yml for safety reasons
-      root_path: /Workspace/Bundles/${bundle.name}/${bundle.target}
+      # see databricks.local.yml.example
+      root_path: /Workspace/.bundle/${bundle.name}/${bundle.target}
     permissions:
       - user_name: ${var.workspace_user}
         level: CAN_MANAGE
