@@ -1,17 +1,17 @@
 # Databricks notebook source
 # DBTITLE 1,Imports
-from olist_lakehouse.io import read_managed_table, write_managed_table
 from pyspark.sql.functions import col
 
 # COMMAND ----------
 
 # DBTITLE 1,Define parameters
-dbutils.widgets.text("catalog", "")
+dbutils.widgets.text("catalog_name", "")
+dbutils.widgets.text("bronze_schema_name", "")
+dbutils.widgets.text("silver_schema_name", "")
 
-# COMMAND ----------
-
-# DBTITLE 1,Get parameters
-catalog = dbutils.widgets.get("catalog")
+catalog_name = dbutils.widgets.get("catalog_name")
+bronze_schema_name = dbutils.widgets.get("bronze_schema_name")
+silver_schema_name = dbutils.widgets.get("silver_schema_name")
 
 # COMMAND ----------
 
@@ -40,16 +40,10 @@ catalog = dbutils.widgets.get("catalog")
 # COMMAND ----------
 
 # DBTITLE 1,Read
-order_items = read_managed_table(
-    catalog=catalog,
-    schema="bronze",
-    table="olist_order_items_dataset",
+order_items = spark.read.table(
+    f"{catalog_name}.{bronze_schema_name}.olist_order_items_dataset"
 )
-sellers = read_managed_table(
-    catalog=catalog,
-    schema="bronze",
-    table="olist_sellers_dataset",
-)
+sellers = spark.read.table(f"{catalog_name}.{bronze_schema_name}.olist_sellers_dataset")
 
 # COMMAND ----------
 
@@ -70,9 +64,9 @@ order_items_transformed = order_items_join.select(
 # COMMAND ----------
 
 # DBTITLE 1,Write
-write_managed_table(
-    order_items_transformed,
-    mode="overwrite",
-    table_full_path=f"{catalog}.silver.order_items",
-    options={"overwriteSchema": "true"}
+target_tbl = f"{catalog_name}.{silver_schema_name}.order_items"
+(
+    order_items_transformed.write.mode("overwrite")
+    .options(overwriteSchema="true")
+    .saveAsTable(target_tbl)
 )

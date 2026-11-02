@@ -1,18 +1,17 @@
 # Databricks notebook source
 # DBTITLE 1,Imports
-from olist_lakehouse.io import read_managed_table, write_managed_table
-from olist_lakehouse.transformations import calculate_dimensional_metrics
 from pyspark.sql.functions import coalesce, col, lit
 
 # COMMAND ----------
 
 # DBTITLE 1,Define parameters
-dbutils.widgets.text("catalog", "")
+dbutils.widgets.text("catalog_name", "")
+dbutils.widgets.text("bronze_schema_name", "")
+dbutils.widgets.text("silver_schema_name", "")
 
-# COMMAND ----------
-
-# DBTITLE 1,Get parameters
-catalog = dbutils.widgets.get("catalog")
+catalog_name = dbutils.widgets.get("catalog_name")
+bronze_schema_name = dbutils.widgets.get("bronze_schema_name")
+silver_schema_name = dbutils.widgets.get("silver_schema_name")
 
 # COMMAND ----------
 
@@ -46,15 +45,11 @@ catalog = dbutils.widgets.get("catalog")
 # COMMAND ----------
 
 # DBTITLE 1,Read sources
-products = read_managed_table(
-    catalog=catalog,
-    schema="bronze",
-    table="olist_products_dataset",
+products = spark.read.table(
+    f"{catalog_name}.{bronze_schema_name}.olist_products_dataset"
 )
-translations = read_managed_table(
-    catalog=catalog,
-    schema="bronze",
-    table="product_category_name_translation",
+translations = spark.read.table(
+    f"{catalog_name}.{bronze_schema_name}.product_category_name_translation"
 )
 
 # COMMAND ----------
@@ -62,23 +57,44 @@ translations = read_managed_table(
 # DBTITLE 1,Transform
 products_join = products.join(translations, on="product_category_name", how="left")
 
-# Transforming the necessary columns for calculations to int
-products_join = products_join.withColumns({
-    column: col(column).cast("float").cast("int") for column in [
-        "product_length_cm",
-        "product_height_cm",
-        "product_width_cm",
-        "product_weight_g"
-    ]
-})
-products_calc = calculate_dimensional_metrics(products_join)
+# COMMAND ----------
+
+# Transforming the necessary columns for calculations from float to int
+# Calculating necessary dimensional metrics
+products_calc = (
+    products_join.withColumns(
+        {
+            column: col(column).cast("float").cast("int")
+            for column in [
+                "product_length_cm",
+                "product_height_cm",
+                "product_width_cm",
+                "product_weight_g",
+            ]
+        }
+    )
+    .withColumn(
+        "product_volume_cm3",
+        col("product_length_cm") * col("product_height_cm") * col("product_width_cm"),
+    )
+    .withColumn("density_g_cm3", col("product_weight_g") / col("product_volume_cm3"))
+)
+
+# COMMAND ----------
 
 products_transformed = products_calc.select(
     "product_id",
-    coalesce(col("product_category_name"), lit("desconhecido")).alias("product_category_name"),
-    coalesce(col("product_category_name_english"), lit("unknown")).alias("product_category_name_english"),
+    coalesce(col("product_category_name"), lit("desconhecido")).alias(
+        "product_category_name"
+    ),
+    coalesce(col("product_category_name_english"), lit("unknown")).alias(
+        "product_category_name_english"
+    ),
     col("product_name_lenght").cast("float").cast("int").alias("product_name_length"),
-    col("product_description_lenght").cast("float").cast("int").alias("product_description_length"),
+    col("product_description_lenght")
+    .cast("float")
+    .cast("int")
+    .alias("product_description_length"),
     col("product_photos_qty").cast("float").cast("int").alias("product_photos_qty"),
     col("product_weight_g").cast("float").cast("int").alias("product_weight_g"),
     "product_volume_cm3",
@@ -88,9 +104,9 @@ products_transformed = products_calc.select(
 # COMMAND ----------
 
 # DBTITLE 1,Write
-write_managed_table(
-    products_transformed,
-    mode="overwrite",
-    table_full_path=f"{catalog}.silver.products",
-    options={"overwriteSchema": "true"}
+target_tbl = f"{catalog_name}.{silver_schema_name}.products"
+(
+    products_transformed.write.mode("overwrite")
+    .options(overwriteSchema="true")
+    .saveAsTable(target_tbl)
 )

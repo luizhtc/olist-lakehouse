@@ -1,6 +1,5 @@
 # Databricks notebook source
 # DBTITLE 1,Imports
-from olist_lakehouse.io import read_managed_table, write_managed_table
 from pyspark.sql import Window
 from pyspark.sql.functions import (
     avg,
@@ -22,12 +21,13 @@ from pyspark.sql.functions import (
 # COMMAND ----------
 
 # DBTITLE 1,Define parameters
-dbutils.widgets.text("catalog", "")
+dbutils.widgets.text("catalog_name", "")
+dbutils.widgets.text("silver_schema_name", "")
+dbutils.widgets.text("gold_schema_name", "")
 
-# COMMAND ----------
-
-# DBTITLE 1,Get parameters
-catalog = dbutils.widgets.get("catalog")
+catalog_name = dbutils.widgets.get("catalog_name")
+silver_schema_name = dbutils.widgets.get("silver_schema_name")
+gold_schema_name = dbutils.widgets.get("gold_schema_name")
 
 # COMMAND ----------
 
@@ -54,8 +54,8 @@ catalog = dbutils.widgets.get("catalog")
 # COMMAND ----------
 
 # DBTITLE 1,Read
-orders = read_managed_table(catalog, "silver", "orders")
-order_items = read_managed_table(catalog, "silver", "order_items")
+orders = spark.read.table(f"{catalog_name}.{silver_schema_name}.orders")
+order_items = spark.read.table(f"{catalog_name}.{silver_schema_name}.order_items")
 
 # COMMAND ----------
 
@@ -85,14 +85,16 @@ delivery_performance = (
 
 # DBTITLE 1,Window ranking
 wn_performance = Window.orderBy(col("on_time_rate").desc())
-delivery_performance_ranked = delivery_performance.withColumn("performance_rank", rank().over(wn_performance))
+delivery_performance_ranked = delivery_performance.withColumn(
+    "performance_rank", rank().over(wn_performance)
+)
 
 # COMMAND ----------
 
 # DBTITLE 1,Write
-write_managed_table(
-    delivery_performance_ranked,
-    mode="overwrite",
-    table_full_path=f"{catalog}.gold.delivery_performance",
-    options={"overwriteSchema": "true"}
+target_tbl = f"{catalog_name}.{gold_schema_name}.delivery_performance"
+(
+    delivery_performance_ranked.write.mode("overwrite")
+    .options(overwriteSchema="true")
+    .saveAsTable(target_tbl)
 )

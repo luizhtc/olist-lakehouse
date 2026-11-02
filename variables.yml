@@ -1,4 +1,0 @@
-variables:
-  catalog_name:
-    description: Used catalog name.
-    default: olist

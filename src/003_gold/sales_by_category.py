@@ -1,6 +1,5 @@
 # Databricks notebook source
 # DBTITLE 1,Imports
-from olist_lakehouse.io import read_managed_table, write_managed_table
 from pyspark.sql import Window
 from pyspark.sql.functions import (
     avg,
@@ -18,12 +17,13 @@ from pyspark.sql.functions import (
 # COMMAND ----------
 
 # DBTITLE 1,Define parameters
-dbutils.widgets.text("catalog", "")
+dbutils.widgets.text("catalog_name", "")
+dbutils.widgets.text("silver_schema_name", "")
+dbutils.widgets.text("gold_schema_name", "")
 
-# COMMAND ----------
-
-# DBTITLE 1,Get parameters
-catalog = dbutils.widgets.get("catalog")
+catalog_name = dbutils.widgets.get("catalog_name")
+silver_schema_name = dbutils.widgets.get("silver_schema_name")
+gold_schema_name = dbutils.widgets.get("gold_schema_name")
 
 # COMMAND ----------
 
@@ -31,7 +31,7 @@ catalog = dbutils.widgets.get("catalog")
 # MAGIC ## Sales by category table
 # MAGIC Which categories generate more revenue? Which one has the biggest average order ticket?
 # MAGIC
-# MAGIC **Table requirements:** 
+# MAGIC **Table requirements:**
 # MAGIC
 # MAGIC - Grouping by category (in english)
 # MAGIC - Must be ordered by `revenue_rank`
@@ -49,20 +49,24 @@ catalog = dbutils.widgets.get("catalog")
 # COMMAND ----------
 
 # DBTITLE 1,Read
-orders = read_managed_table(catalog, "silver", "orders")
-order_items = read_managed_table(catalog, "silver", "order_items")
-products = read_managed_table(catalog, "silver", "products")
+orders = spark.read.table(f"{catalog_name}.{silver_schema_name}.orders")
+order_items = spark.read.table(f"{catalog_name}.{silver_schema_name}.order_items")
+products = spark.read.table(f"{catalog_name}.{silver_schema_name}.products")
 
 # COMMAND ----------
 
 # DBTITLE 1,Joins
-orders_and_products = order_items.join(products, on="product_id", how="left").join(orders, on="order_id", how="left")
+orders_and_products = order_items.join(products, on="product_id", how="left").join(
+    orders, on="order_id", how="left"
+)
 orders_and_products_filtered = orders_and_products.filter("order_status = 'delivered'")
 
 # COMMAND ----------
 
 # DBTITLE 1,Group by product category
-sales_by_category = orders_and_products_filtered.groupBy("product_category_name_english").agg(
+sales_by_category = orders_and_products_filtered.groupBy(
+    "product_category_name_english"
+).agg(
     _sum("price").alias("total_revenue"),
     countDistinct("order_id").alias("total_orders"),
     _count("*").alias("total_items_sold"),
@@ -74,15 +78,16 @@ sales_by_category = orders_and_products_filtered.groupBy("product_category_name_
 
 # DBTITLE 1,Window ranking
 wn_revenue = Window.orderBy(col("total_revenue").desc(), col("avg_order_ticket").desc())
-
-sales_by_category_ranked = sales_by_category.withColumn("revenue_rank", rank().over(wn_revenue))
+sales_by_category_ranked = sales_by_category.withColumn(
+    "revenue_rank", rank().over(wn_revenue)
+)
 
 # COMMAND ----------
 
 # DBTITLE 1,Write
-write_managed_table(
-    sales_by_category_ranked,
-    mode="overwrite",
-    table_full_path=f"{catalog}.gold.sales_by_category",
-    options={"overwriteSchema": "true"}
+target_tbl = f"{catalog_name}.{gold_schema_name}.sales_by_category"
+(
+    sales_by_category_ranked.write.mode("overwrite")
+    .options(overwriteSchema="true")
+    .saveAsTable(target_tbl)
 )

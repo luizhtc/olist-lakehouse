@@ -1,6 +1,5 @@
 # Databricks notebook source
 # DBTITLE 1,Imports
-from olist_lakehouse.io import read_managed_table, write_managed_table
 from pyspark.sql.functions import (
     avg,
     col,
@@ -18,12 +17,13 @@ from pyspark.sql.functions import (
 # COMMAND ----------
 
 # DBTITLE 1,Define parameters
-dbutils.widgets.text("catalog", "")
+dbutils.widgets.text("catalog_name", "")
+dbutils.widgets.text("silver_schema_name", "")
+dbutils.widgets.text("gold_schema_name", "")
 
-# COMMAND ----------
-
-# DBTITLE 1,Get parameters
-catalog = dbutils.widgets.get("catalog")
+catalog_name = dbutils.widgets.get("catalog_name")
+silver_schema_name = dbutils.widgets.get("silver_schema_name")
+gold_schema_name = dbutils.widgets.get("gold_schema_name")
 
 # COMMAND ----------
 
@@ -50,9 +50,9 @@ catalog = dbutils.widgets.get("catalog")
 # COMMAND ----------
 
 # DBTITLE 1,Read
-orders = read_managed_table(catalog, "silver", "orders")
-order_items = read_managed_table(catalog, "silver", "order_items")
-reviews = read_managed_table(catalog, "silver", "reviews")
+orders = spark.read.table(f"{catalog_name}.{silver_schema_name}.orders")
+order_items = spark.read.table(f"{catalog_name}.{silver_schema_name}.order_items")
+reviews = spark.read.table(f"{catalog_name}.{silver_schema_name}.reviews")
 
 # COMMAND ----------
 
@@ -70,7 +70,9 @@ valid_sellers = (
 
 # DBTITLE 1,Join
 order_items_valid_sellers = (
-    order_items.join(valid_sellers, on="seller_id", how="inner").select("order_id", "seller_id").distinct()
+    order_items.join(valid_sellers, on="seller_id", how="inner")
+    .select("order_id", "seller_id")
+    .distinct()
 )
 
 # COMMAND ----------
@@ -81,7 +83,8 @@ seller_time = (
     .groupBy("seller_id")
     .agg(
         _round(
-            _sum(when(~col("is_late"), 1).otherwise(0)) / countDistinct(col("order_id")),
+            _sum(when(~col("is_late"), 1).otherwise(0))
+            / countDistinct(col("order_id")),
             2,
         ).alias("on_time_rate")
     )
@@ -92,7 +95,9 @@ seller_time = (
 
 # DBTITLE 1,Calculate seller earnings
 seller_earnings = (
-    order_items_valid_sellers.join(order_items, on=["order_id", "seller_id"], how="inner")
+    order_items_valid_sellers.join(
+        order_items, on=["order_id", "seller_id"], how="inner"
+    )
     .groupBy(col("seller_id"))
     .agg(
         countDistinct(col("order_id")).alias("total_orders"),
@@ -127,9 +132,9 @@ seller_scorecard = (
 # COMMAND ----------
 
 # DBTITLE 1,Write
-write_managed_table(
-    seller_scorecard,
-    mode="overwrite",
-    table_full_path=f"{catalog}.gold.seller_scorecard",
-    options={"overwriteSchema": "true"}
+target_tbl = f"{catalog_name}.{gold_schema_name}.seller_scorecard"
+(
+    seller_scorecard.write.mode("overwrite")
+    .options(overwriteSchema="true")
+    .saveAsTable(target_tbl)
 )

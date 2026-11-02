@@ -17,7 +17,7 @@ resources:
               notebook_task:
                 notebook_path: ../../src/001_bronze/kaggle_ingestion.py
                 base_parameters:
-                  dataset: "{{input}}"
+                  source_path: "{{input}}"
                 source: WORKSPACE
               environment_key: default
               min_retry_interval_millis: 900000
@@ -83,6 +83,23 @@ resources:
             - task_key: silver_order_items
             - task_key: silver_reviews
 
+        - task_key: gold_delay_x_customer_satisfaction
+          notebook_task:
+            notebook_path: ../../src/003_gold/delay_x_customer_satisfaction.py
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: silver_orders
+            - task_key: silver_reviews
+
+        - task_key: gold_rfm_segment
+          notebook_task:
+            notebook_path: ../../src/003_gold/rfm_segment.py
+            source: WORKSPACE
+          environment_key: default
+          depends_on:
+            - task_key: silver_orders
+
       queue:
         enabled: true
       performance_target: PERFORMANCE_OPTIMIZED
@@ -93,9 +110,9 @@ resources:
         - name: bronze_schema_name
           default: ${resources.schemas.bronze.name}
         - name: silver_schema_name
-          default: ${resources.schemas.bronze.name}
+          default: ${resources.schemas.silver.name}
         - name: gold_schema_name
-          default: ${resources.schemas.bronze.name}
+          default: ${resources.schemas.gold.name}
 
       environments:
         - environment_key: default

@@ -54,9 +54,9 @@ except Exception as e:
 
 # COMMAND ----------
 
-dbutils.widgets.text("catalog_name", "olist")
-dbutils.widgets.text("source_path", "olist_customers_dataset.csv")
-dbutils.widgets.text("bronze_schema_name", "dev_luizhtcaldo_bronze")
+dbutils.widgets.text("catalog_name", "")
+dbutils.widgets.text("source_path", "")
+dbutils.widgets.text("bronze_schema_name", "")
 
 # COMMAND ----------
 
@@ -71,7 +71,7 @@ bronze_schema_name = dbutils.widgets.get("bronze_schema_name")
 
 # COMMAND ----------
 
-#DBTITLE 1,Downloading the source file from Kaggle and transforming it to a PySpark DF
+# DBTITLE 1,Downloading the source file from Kaggle and transforming it to a PySpark DF
 pandas_df = kagglehub.dataset_load(
     adapter=KaggleDatasetAdapter.PANDAS,
     handle="olistbr/brazilian-ecommerce",
@@ -86,8 +86,8 @@ spark_df = (
 
 # COMMAND ----------
 
-#DBTITLE 1,Write to bronze table
+# DBTITLE 1,Write to bronze table
 # The olist dataset is small and static, so in this case we will re-download
 # each full dataset and overwrite the table in every write
-target_tbl = f"{catalog_name}.{bronze_schema_name}.{source_path.replace(".csv", "")}"
+target_tbl = f"{catalog_name}.{bronze_schema_name}.{source_path.replace('.csv', '')}"
 spark_df.write.mode("overwrite").options(overwriteSchema="true").saveAsTable(target_tbl)

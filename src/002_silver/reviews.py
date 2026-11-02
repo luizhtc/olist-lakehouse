@@ -1,18 +1,20 @@
 # Databricks notebook source
 # DBTITLE 1,Imports
-from olist_lakehouse.io import read_managed_table, write_managed_table
-from olist_lakehouse.transformations import parse_timestamp
 from pyspark.sql.functions import col, timestamp_diff, trim, when
+
+from olist_lakehouse.dataframe_transformations import parse_timestamp
 
 # COMMAND ----------
 
 # DBTITLE 1,Define parameters
-dbutils.widgets.text("catalog", "")
+dbutils.widgets.text("catalog_name", "")
+dbutils.widgets.text("bronze_schema_name", "")
+dbutils.widgets.text("silver_schema_name", "")
 
-# COMMAND ----------
+catalog_name = dbutils.widgets.get("catalog_name")
+bronze_schema_name = dbutils.widgets.get("bronze_schema_name")
+silver_schema_name = dbutils.widgets.get("silver_schema_name")
 
-# DBTITLE 1,Get parameters
-catalog = dbutils.widgets.get("catalog")
 
 # COMMAND ----------
 
@@ -47,10 +49,8 @@ catalog = dbutils.widgets.get("catalog")
 # COMMAND ----------
 
 # DBTITLE 1,Read
-reviews = read_managed_table(
-    catalog=catalog,
-    schema="bronze",
-    table="olist_order_reviews_dataset",
+reviews = spark.read.table(
+    f"{catalog_name}.{bronze_schema_name}.olist_order_reviews_dataset"
 )
 
 # COMMAND ----------
@@ -80,16 +80,18 @@ reviews_transformed = (
     )
     .withColumn(
         "response_time_hours",
-        timestamp_diff("HOUR", col("review_creation_date"), col("review_answer_timestamp")),
+        timestamp_diff(
+            "HOUR", col("review_creation_date"), col("review_answer_timestamp")
+        ),
     )
 )
 
 # COMMAND ----------
 
 # DBTITLE 1,Write
-write_managed_table(
-    reviews_transformed,
-    mode="overwrite",
-    table_full_path=f"{catalog}.silver.reviews",
-    options={"overwriteSchema": "true"}
+target_tbl = f"{catalog_name}.{silver_schema_name}.reviews"
+(
+    reviews_transformed.write.mode("overwrite")
+    .options(overwriteSchema="true")
+    .saveAsTable(target_tbl)
 )

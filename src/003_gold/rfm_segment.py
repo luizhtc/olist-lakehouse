@@ -1,8 +1,4 @@
 # Databricks notebook source
-# /// script
-# [tool.databricks.environment]
-# environment_version = "5"
-# ///
 from pyspark.sql import Window
 from pyspark.sql.functions import (
     col,
@@ -21,12 +17,21 @@ from pyspark.sql.functions import (
 
 # COMMAND ----------
 
-# Format should be YYYY-MM-DD
+dbutils.widgets.text("catalog_name", "")
+dbutils.widgets.text("silver_schema_name", "")
+dbutils.widgets.text("gold_schema_name", "")
+
+catalog_name = dbutils.widgets.get("catalog_name")
+silver_schema_name = dbutils.widgets.get("silver_schema_name")
+gold_schema_name = dbutils.widgets.get("gold_schema_name")
+
+# Since the dataset is fronze, we simulate the current date via this constant.
+# Format must be YYYY-MM-dd
 CURRENT_DATE = "2019-01-01"
 
 # COMMAND ----------
 
-orders = spark.read.table("cat_olist.sch_silver.orders")
+orders = spark.read.table(f"{catalog_name}.{silver_schema_name}.orders")
 
 # COMMAND ----------
 
@@ -37,8 +42,6 @@ rfm_dimensions = orders.groupby("customer_unique_id").agg(
     countDistinct(col("order_id")).alias("frequency"),
     _sum(col("total_payment_value")).alias("monetary"),
 )
-
-rfm_dimensions.display()
 
 # COMMAND ----------
 
@@ -57,5 +60,7 @@ rfm = (
     .drop("q_recency", "q_frequency", "q_monetary")
 )
 
-rfm.display()
+# COMMAND ----------
 
+target_tbl = f"{catalog_name}.{gold_schema_name}.rfm_segment"
+rfm.write.mode("overwrite").options(overwriteSchema="true").saveAsTable(target_tbl)

@@ -1,8 +1,7 @@
 resources:
   schemas:
     gold:
-      catalog_name: "olist"
-      name: "gold"
-      comment: "Gold schema for objects"
+      catalog_name: ${var.catalog_name}
+      name: ${var.gold_schema_name}
       lifecycle:
         prevent_destroy: true
